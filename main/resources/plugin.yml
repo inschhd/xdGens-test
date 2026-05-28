@@ -1,0 +1,6 @@
+name: xdGens
+version: '${version}'
+
+main: de.louis.xdGens.main.Main
+api-version: '26.1.1'
+load: POSTWORLD
