@@ -17,9 +17,29 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Main Hoe Upgrade GUI  —  5 rows (45 slots)
+ *
+ * Row 0  ──  border (purple panes)
+ * Row 1  ──  border | [CROP  col 2] filler filler [XP    col 6] border
+ * Row 2  ──  border | [STATS col 2] filler filler [STATS col 6] border
+ * Row 3  ──  border | [TOKEN col 2] filler filler [HOE   col 6] border   ← HOE upgrade on right
+ * Row 4  ──  border (purple panes)
+ *
+ * Exact slots used:
+ *   Crop   → 11    XP     → 15
+ *   Token  → 29    Hoe    → 33
+ *   Borders: top row 0-8, bottom row 36-44, left col 0/9/18/27/36, right col 8/17/26/35/44
+ */
 public class HoeUpgradeGUI {
 
     public static final String GUI_TITLE = "⚡ Hoe Upgrades";
+
+    // ── slot constants ────────────────────────────────────────────────────
+    private static final int SLOT_CROP  = 11;
+    private static final int SLOT_XP    = 15;
+    private static final int SLOT_TOKEN = 29;
+    private static final int SLOT_HOE   = 33;
 
     private final Main plugin;
 
@@ -29,177 +49,241 @@ public class HoeUpgradeGUI {
 
     public void open(Player player) {
         Inventory inv = Bukkit.createInventory(
-                null,
-                27,
+                null, 45,
                 MessageUtil.parse("<gradient:#a18cd1:#fbc2eb><bold>⚡ Hoe Upgrades</bold></gradient>")
         );
 
-        fillBackground(inv);
+        fillBorders(inv);
 
-        inv.setItem(11, buildCropUpgradeItem(player));
-        inv.setItem(13, buildXpUpgradeItem(player));
-        inv.setItem(15, buildTokenUpgradeItem(player));
+        inv.setItem(SLOT_CROP,  buildCropItem(player));
+        inv.setItem(SLOT_XP,    buildXpItem(player));
+        inv.setItem(SLOT_TOKEN, buildTokenItem(player));
+        inv.setItem(SLOT_HOE,   buildHoeItem(player));
+
+        // Centre decoration – info pane
+        inv.setItem(22, buildInfoPane(player));
 
         player.openInventory(inv);
     }
 
-    private ItemStack buildCropUpgradeItem(Player player) {
-        HoeUpgradeManager manager = plugin.getHoeUpgradeManager();
-        int current = manager.getCropLevel(player);
-        long tokens = plugin.getCurrencyManager().getTokens(player);
+    // ── upgrade items ─────────────────────────────────────────────────────
+
+    private ItemStack buildCropItem(Player player) {
+        HoeUpgradeManager m = plugin.getHoeUpgradeManager();
+        int lvl   = m.getCropLevel(player);
+        int maxLv = HoeUpgradeManager.MAX_CROP_LEVEL;
+        boolean maxed = lvl >= maxLv;
 
         ItemStack item = new ItemStack(Material.WHEAT);
-        ItemMeta meta = item.getItemMeta();
+        ItemMeta  meta = item.getItemMeta();
         meta.displayName(MessageUtil.parse("<gradient:#f6d365:#fda085><bold>🌾 Crop Harvest</bold></gradient>"));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(MessageUtil.parse("<gray>Harvest more wheat per break.</gray>"));
-        lore.add(MessageUtil.parse("<dark_gray>Each level adds +1 extra crop.</dark_gray>"));
-        lore.add(MessageUtil.parse(" "));
-        lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#f6d365:#fda085>" + current + "</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#f6d365:#fda085>+" + current + " crops</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Max Level: <gradient:#f6d365:#fda085>" + HoeUpgradeManager.MAX_CROP_LEVEL + "</gradient>"));
-        lore.add(MessageUtil.parse(" "));
-
-        if (current >= HoeUpgradeManager.MAX_CROP_LEVEL) {
-            lore.add(MessageUtil.parse("<gradient:#f6d365:#fda085><bold>MAXED OUT</bold></gradient>"));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Bonus: <gradient:#f6d365:#fda085>+" + lvl + " crops</gradient> <dark_gray>per break"));
+        lore.add(MessageUtil.parse("<gray>Level: " + levelBar(lvl, maxLv)));
+        lore.add(MessageUtil.parse("<gray>       <white>" + lvl + "</white><dark_gray>/" + maxLv));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        if (maxed) {
+            lore.add(MessageUtil.parse("<gradient:#f6d365:#fda085><bold>✦ MAXED OUT ✦</bold></gradient>"));
         } else {
-            int nextLevel = current + 1;
-            long nextCost = manager.getCropCost(nextLevel);
-            boolean canAfford = tokens >= nextCost;
-
-            lore.add(MessageUtil.parse("<gray>Next Level: <yellow>" + nextLevel + "</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Bonus: <yellow>+" + nextLevel + " crops</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Cost: "
-                    + (canAfford ? "<green>" : "<red>")
-                    + NumberUtil.format(nextCost) + " Tokens"
-                    + (canAfford ? "</green>" : "</red>")));
-            lore.add(MessageUtil.parse(" "));
-            lore.add(MessageUtil.parse(canAfford
-                    ? "<green>Click to upgrade.</green>"
-                    : "<red>You cannot afford this upgrade.</red>"));
+            long tokens = plugin.getCurrencyManager().getTokens(player);
+            long cost   = m.getCropCost(lvl + 1);
+            lore.add(MessageUtil.parse("<gray>Next cost: " + costTag(tokens, cost) + " Tokens"));
+            lore.add(MessageUtil.parse(""));
+            lore.add(tokens >= cost
+                    ? MessageUtil.parse("<green>▶ Click to choose amount")
+                    : MessageUtil.parse("<red>✘ Not enough Tokens"));
         }
 
-        meta.lore(lore);
-
-        if (current > 0) {
-            meta.addEnchant(Enchantment.UNBREAKING, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        }
-
+        applyGlow(meta, lvl > 0);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        meta.lore(lore);
         item.setItemMeta(meta);
         return item;
     }
 
-    private ItemStack buildXpUpgradeItem(Player player) {
-        HoeUpgradeManager manager = plugin.getHoeUpgradeManager();
-        int current = manager.getXpLevel(player);
-        long tokens = plugin.getCurrencyManager().getTokens(player);
+    private ItemStack buildXpItem(Player player) {
+        HoeUpgradeManager m = plugin.getHoeUpgradeManager();
+        int lvl   = m.getXpLevel(player);
+        int maxLv = HoeUpgradeManager.MAX_XP_LEVEL;
+        boolean maxed = lvl >= maxLv;
 
         ItemStack item = new ItemStack(Material.EXPERIENCE_BOTTLE);
-        ItemMeta meta = item.getItemMeta();
+        ItemMeta  meta = item.getItemMeta();
         meta.displayName(MessageUtil.parse("<gradient:#7afcff:#00c2ff><bold>✨ XP Boost</bold></gradient>"));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(MessageUtil.parse("<gray>Gain more XP from harvesting.</gray>"));
-        lore.add(MessageUtil.parse("<dark_gray>Each level adds +2% XP.</dark_gray>"));
-        lore.add(MessageUtil.parse(" "));
-        lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#7afcff:#00c2ff>" + current + "</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#7afcff:#00c2ff>+"
-                + NumberUtil.format(manager.getXpPercentBonus(player)) + "% XP</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Max Level: <gradient:#7afcff:#00c2ff>" + HoeUpgradeManager.MAX_XP_LEVEL + "</gradient>"));
-        lore.add(MessageUtil.parse(" "));
-
-        if (current >= HoeUpgradeManager.MAX_XP_LEVEL) {
-            lore.add(MessageUtil.parse("<gradient:#7afcff:#00c2ff><bold>MAXED OUT</bold></gradient>"));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Bonus: <gradient:#7afcff:#00c2ff>+" + NumberUtil.format(m.getXpPercentBonus(player)) + "% XP</gradient>"));
+        lore.add(MessageUtil.parse("<gray>Level: <aqua>" + NumberUtil.format(lvl) + "</aqua><dark_gray>/" + NumberUtil.format(maxLv)));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        if (maxed) {
+            lore.add(MessageUtil.parse("<gradient:#7afcff:#00c2ff><bold>✦ MAXED OUT ✦</bold></gradient>"));
         } else {
-            int nextLevel = current + 1;
-            long nextCost = manager.getXpCost(nextLevel);
-            boolean canAfford = tokens >= nextCost;
-
-            lore.add(MessageUtil.parse("<gray>Next Level: <yellow>" + nextLevel + "</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Bonus: <yellow>+" + (nextLevel * 2L) + "% XP</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Cost: "
-                    + (canAfford ? "<green>" : "<red>")
-                    + NumberUtil.format(nextCost) + " Tokens"
-                    + (canAfford ? "</green>" : "</red>")));
-            lore.add(MessageUtil.parse(" "));
-            lore.add(MessageUtil.parse(canAfford
-                    ? "<green>Click to upgrade.</green>"
-                    : "<red>You cannot afford this upgrade.</red>"));
+            long tokens = plugin.getCurrencyManager().getTokens(player);
+            long cost   = m.getXpCost(lvl + 1);
+            lore.add(MessageUtil.parse("<gray>Next cost: " + costTag(tokens, cost) + " Tokens"));
+            lore.add(MessageUtil.parse(""));
+            lore.add(tokens >= cost
+                    ? MessageUtil.parse("<green>▶ Click to choose amount")
+                    : MessageUtil.parse("<red>✘ Not enough Tokens"));
         }
 
-        meta.lore(lore);
-
-        if (current > 0) {
-            meta.addEnchant(Enchantment.UNBREAKING, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        }
-
+        applyGlow(meta, lvl > 0);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        meta.lore(lore);
         item.setItemMeta(meta);
         return item;
     }
 
-    private ItemStack buildTokenUpgradeItem(Player player) {
-        HoeUpgradeManager manager = plugin.getHoeUpgradeManager();
-        int current = manager.getTokenLevel(player);
-        long tokens = plugin.getCurrencyManager().getTokens(player);
+    private ItemStack buildTokenItem(Player player) {
+        HoeUpgradeManager m = plugin.getHoeUpgradeManager();
+        int lvl   = m.getTokenLevel(player);
+        int maxLv = HoeUpgradeManager.MAX_TOKEN_LEVEL;
+        boolean maxed = lvl >= maxLv;
 
         ItemStack item = new ItemStack(Material.GOLD_INGOT);
-        ItemMeta meta = item.getItemMeta();
+        ItemMeta  meta = item.getItemMeta();
         meta.displayName(MessageUtil.parse("<gradient:#ffd86f:#fc6262><bold>💰 Token Boost</bold></gradient>"));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(MessageUtil.parse("<gray>Gain more tokens from harvesting.</gray>"));
-        lore.add(MessageUtil.parse("<dark_gray>Each level adds +2% Tokens.</dark_gray>"));
-        lore.add(MessageUtil.parse(" "));
-        lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#ffd86f:#fc6262>" + current + "</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#ffd86f:#fc6262>+"
-                + NumberUtil.format(manager.getTokenPercentBonus(player)) + "% Tokens</gradient>"));
-        lore.add(MessageUtil.parse("<gray>Max Level: <gradient:#ffd86f:#fc6262>" + HoeUpgradeManager.MAX_TOKEN_LEVEL + "</gradient>"));
-        lore.add(MessageUtil.parse(" "));
-
-        if (current >= HoeUpgradeManager.MAX_TOKEN_LEVEL) {
-            lore.add(MessageUtil.parse("<gradient:#ffd86f:#fc6262><bold>MAXED OUT</bold></gradient>"));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Bonus: <gradient:#ffd86f:#fc6262>+" + NumberUtil.format(m.getTokenPercentBonus(player)) + "% Tokens</gradient>"));
+        lore.add(MessageUtil.parse("<gray>Level: <gold>" + NumberUtil.format(lvl) + "</gold><dark_gray>/" + NumberUtil.format(maxLv)));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        if (maxed) {
+            lore.add(MessageUtil.parse("<gradient:#ffd86f:#fc6262><bold>✦ MAXED OUT ✦</bold></gradient>"));
         } else {
-            int nextLevel = current + 1;
-            long nextCost = manager.getTokenCost(nextLevel);
-            boolean canAfford = tokens >= nextCost;
-
-            lore.add(MessageUtil.parse("<gray>Next Level: <yellow>" + nextLevel + "</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Bonus: <yellow>+" + (nextLevel * 2L) + "% Tokens</yellow>"));
-            lore.add(MessageUtil.parse("<gray>Next Cost: "
-                    + (canAfford ? "<green>" : "<red>")
-                    + NumberUtil.format(nextCost) + " Tokens"
-                    + (canAfford ? "</green>" : "</red>")));
-            lore.add(MessageUtil.parse(" "));
-            lore.add(MessageUtil.parse(canAfford
-                    ? "<green>Click to upgrade.</green>"
-                    : "<red>You cannot afford this upgrade.</red>"));
+            long tokens = plugin.getCurrencyManager().getTokens(player);
+            long cost   = m.getTokenCost(lvl + 1);
+            lore.add(MessageUtil.parse("<gray>Next cost: " + costTag(tokens, cost) + " Tokens"));
+            lore.add(MessageUtil.parse(""));
+            lore.add(tokens >= cost
+                    ? MessageUtil.parse("<green>▶ Click to choose amount")
+                    : MessageUtil.parse("<red>✘ Not enough Tokens"));
         }
 
+        applyGlow(meta, lvl > 0);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
 
-        if (current > 0) {
-            meta.addEnchant(Enchantment.UNBREAKING, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+    private ItemStack buildHoeItem(Player player) {
+        HoeUpgradeManager m = plugin.getHoeUpgradeManager();
+        int lvl   = m.getHoeLevel(player);
+        int maxLv = HoeUpgradeManager.MAX_HOE_LEVEL;
+        boolean maxed = lvl >= maxLv;
+
+        ItemStack item = new ItemStack(m.getHoeMaterial(player));
+        ItemMeta  meta = item.getItemMeta();
+        meta.displayName(MessageUtil.parse("<gradient:#c0c0c0:#ffffff><bold>⚒ Hoe Material</bold></gradient>"));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Material: <white>" + m.getHoeMaterialName(player) + "</white>"));
+        lore.add(MessageUtil.parse("<gray>Stage: <white>" + m.getHoeStageInMaterial(player) + "</white><dark_gray>/3"));
+        lore.add(MessageUtil.parse("<gray>Speed: <aqua>+" + String.format("%.0f", (m.getWalkSpeed(player) - 0.2f) / (0.7f - 0.2f) * 100) + "% walk speed</aqua>"));
+        lore.add(MessageUtil.parse("<gray>XP bonus: <green>+" + String.format("%.0f", m.getHoeXpPercentBonus(player)) + "%</green>"));
+        lore.add(MessageUtil.parse("<gray>Level: " + levelBar(lvl, maxLv)));
+        lore.add(MessageUtil.parse("<gray>       <white>" + lvl + "</white><dark_gray>/" + maxLv));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        if (maxed) {
+            lore.add(MessageUtil.parse("<gradient:#c0c0c0:#ffffff><bold>✦ MAXED OUT ✦</bold></gradient>"));
+        } else {
+            double money = plugin.getCurrencyManager().getMoney(player);
+            long cost    = m.getHoeCost(lvl + 1);
+            lore.add(MessageUtil.parse("<gray>Next cost: " + costTagMoney(money, cost) + " $"));
+            lore.add(MessageUtil.parse(""));
+            lore.add(money >= cost
+                    ? MessageUtil.parse("<green>▶ Click to upgrade")
+                    : MessageUtil.parse("<red>✘ Not enough money"));
         }
 
+        applyGlow(meta, lvl > 1);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    // ── centre info pane ──────────────────────────────────────────────────
+
+    private ItemStack buildInfoPane(Player player) {
+        long tokens = plugin.getCurrencyManager().getTokens(player);
+        double money = plugin.getCurrencyManager().getMoney(player);
+
+        ItemStack item = new ItemStack(Material.BOOK);
+        ItemMeta  meta = item.getItemMeta();
+        meta.displayName(MessageUtil.parse("<gradient:#a18cd1:#fbc2eb><bold>Your Stats</bold></gradient>"));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Tokens: <gold>" + NumberUtil.format(tokens) + "</gold>"));
+        lore.add(MessageUtil.parse("<gray>Money:  <green>$" + NumberUtil.format(money) + "</green>"));
+        lore.add(MessageUtil.parse("<dark_gray>─────────────────────"));
+        lore.add(MessageUtil.parse("<gray>Crop Lv: <gradient:#f6d365:#fda085>" + plugin.getHoeUpgradeManager().getCropLevel(player) + "</gradient>"));
+        lore.add(MessageUtil.parse("<gray>XP   Lv: <gradient:#7afcff:#00c2ff>" + plugin.getHoeUpgradeManager().getXpLevel(player) + "</gradient>"));
+        lore.add(MessageUtil.parse("<gray>Token Lv: <gradient:#ffd86f:#fc6262>" + plugin.getHoeUpgradeManager().getTokenLevel(player) + "</gradient>"));
+        lore.add(MessageUtil.parse("<gray>Hoe   Lv: <gradient:#c0c0c0:#ffffff>" + plugin.getHoeUpgradeManager().getHoeLevel(player) + "</gradient>"));
+        meta.lore(lore);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         item.setItemMeta(meta);
         return item;
     }
 
-    private void fillBackground(Inventory inv) {
-        ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta borderMeta = border.getItemMeta();
-        borderMeta.displayName(MessageUtil.parse("<gray> </gray>"));
-        border.setItemMeta(borderMeta);
+    // ── layout helpers ────────────────────────────────────────────────────
 
-        for (int i = 0; i < inv.getSize(); i++) {
-            inv.setItem(i, border.clone());
+    /**
+     * Fills the outer border with purple panes (top/bottom rows + left/right columns).
+     * Inner area (slots 10-16, 19-25, 28-34) stays empty/free.
+     */
+    private void fillBorders(Inventory inv) {
+        ItemStack pane = pane(Material.PURPLE_STAINED_GLASS_PANE);
+        for (int i = 0;  i < 9;  i++) inv.setItem(i, pane.clone());       // top row
+        for (int i = 36; i < 45; i++) inv.setItem(i, pane.clone());       // bottom row
+        int[] leftRight = {9, 17, 18, 26, 27, 35};
+        for (int s : leftRight) inv.setItem(s, pane.clone());
+
+        // Inner filler (dark grey) for remaining non-button slots
+        ItemStack dark = pane(Material.BLACK_STAINED_GLASS_PANE);
+        for (int i = 10; i <= 34; i++) {
+            if (inv.getItem(i) == null) inv.setItem(i, dark.clone());
         }
+    }
+
+    // ── small helpers ─────────────────────────────────────────────────────
+
+    private String levelBar(int current, int max) {
+        int segments = 10;
+        int filled   = max > 0 ? (int) Math.round((double) current / max * segments) : 0;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments; i++)
+            sb.append(i < filled ? "<green>█" : "<dark_gray>░");
+        return sb.toString();
+    }
+
+    /** Coloured cost tag (green = can afford, red = cannot). */
+    private String costTag(long balance, long cost) {
+        return (balance >= cost ? "<green>" : "<red>") + NumberUtil.format(cost) + (balance >= cost ? "</green>" : "</red>");
+    }
+    private String costTagMoney(double balance, long cost) {
+        return (balance >= cost ? "<green>" : "<red>") + NumberUtil.format(cost) + (balance >= cost ? "</green>" : "</red>");
+    }
+
+    private void applyGlow(ItemMeta meta, boolean glow) {
+        if (!glow) return;
+        meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+    }
+
+    private ItemStack pane(Material mat) {
+        ItemStack p = new ItemStack(mat);
+        ItemMeta  m = p.getItemMeta();
+        m.displayName(Component.empty());
+        p.setItemMeta(m);
+        return p;
     }
 }
