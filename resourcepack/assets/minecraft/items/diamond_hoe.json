@@ -1,32 +1,32 @@
 {
   "model": {
-    "type": "minecraft:select",
+    "type": "minecraft:range_dispatch",
     "property": "minecraft:custom_model_data",
-    "cases": [
-      {
-        "when": 1001,
-        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_forest" }
-      },
-      {
-        "when": 1002,
-        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_ocean" }
-      },
-      {
-        "when": 1003,
-        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_lava" }
-      },
-      {
-        "when": 1004,
-        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_crystal" }
-      },
-      {
-        "when": 1005,
-        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_shadow" }
-      }
-    ],
     "fallback": {
       "type": "minecraft:model",
       "model": "minecraft:item/diamond_hoe"
-    }
+    },
+    "entries": [
+      {
+        "threshold": 1001,
+        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_forest" }
+      },
+      {
+        "threshold": 1002,
+        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_ocean" }
+      },
+      {
+        "threshold": 1003,
+        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_lava" }
+      },
+      {
+        "threshold": 1004,
+        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_crystal" }
+      },
+      {
+        "threshold": 1005,
+        "model": { "type": "minecraft:model", "model": "xdgens:item/hoe_shadow" }
+      }
+    ]
   }
 }
