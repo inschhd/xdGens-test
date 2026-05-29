@@ -13,6 +13,8 @@ commands:
     description: Create a test wheat field
   workstation:
     description: Get a wheat workstation
+  diamond:
+    description: Get one diamond
   prestige:
     description: Prestige once you reach the max level
   sell:
