@@ -82,15 +82,17 @@ public class HoeUpgradeListener implements Listener {
 
         if (event.getSlot() == 11) {
             handleCropUpgrade(player);
-        } else if (event.getSlot() == 15) {
+        } else if (event.getSlot() == 13) {
             handleXpUpgrade(player);
+        } else if (event.getSlot() == 15) {
+            handleTokenUpgrade(player);
         }
     }
 
     private void handleCropUpgrade(Player player) {
         int currentLevel = plugin.getHoeUpgradeManager().getCropLevel(player);
 
-        if (currentLevel >= 10) {
+        if (currentLevel >= plugin.getHoeUpgradeManager().MAX_CROP_LEVEL) {
             MessageUtil.sendRaw(player,
                     MessageUtil.PREFIX + " <gold>Crop Harvest is already maxed out!</gold>");
             return;
@@ -98,7 +100,7 @@ public class HoeUpgradeListener implements Listener {
 
         int nextLevel = currentLevel + 1;
         long tokens = plugin.getCurrencyManager().getTokens(player);
-        long cost = plugin.getHoeUpgradeManager().getXpCost(nextLevel);
+        long cost = plugin.getHoeUpgradeManager().getCropCost(nextLevel);
 
         if (tokens < cost) {
             long missing = cost - tokens;
@@ -120,7 +122,7 @@ public class HoeUpgradeListener implements Listener {
     private void handleXpUpgrade(Player player) {
         int currentLevel = plugin.getHoeUpgradeManager().getXpLevel(player);
 
-        if (currentLevel >= 10) {
+        if (currentLevel >= plugin.getHoeUpgradeManager().MAX_XP_LEVEL) {
             MessageUtil.sendRaw(player,
                     MessageUtil.PREFIX + " <gold>XP Boost is already maxed out!</gold>");
             return;
@@ -142,6 +144,36 @@ public class HoeUpgradeListener implements Listener {
             MessageUtil.sendRaw(player,
                     MessageUtil.PREFIX + " <gradient:#7afcff:#00c2ff>XP Boost upgraded to Level "
                             + plugin.getHoeUpgradeManager().getXpLevel(player)
+                            + "!</gradient> <gray>(-" + NumberUtil.format(cost) + " Tokens)</gray>");
+            gui.open(player);
+        }
+    }
+
+    private void handleTokenUpgrade(Player player) {
+        int currentLevel = plugin.getHoeUpgradeManager().getTokenLevel(player);
+
+        if (currentLevel >= plugin.getHoeUpgradeManager().MAX_TOKEN_LEVEL) {
+            MessageUtil.sendRaw(player,
+                    MessageUtil.PREFIX + " <gold>Token Boost is already maxed out!</gold>");
+            return;
+        }
+
+        int nextLevel = currentLevel + 1;
+        long tokens = plugin.getCurrencyManager().getTokens(player);
+        long cost = plugin.getHoeUpgradeManager().getTokenCost(nextLevel);
+
+        if (tokens < cost) {
+            long missing = cost - tokens;
+            MessageUtil.sendRaw(player,
+                    MessageUtil.PREFIX + " <red>Not enough Tokens! You need "
+                            + NumberUtil.format(missing) + " more.</red>");
+            return;
+        }
+
+        if (plugin.getHoeUpgradeManager().upgradeToken(player)) {
+            MessageUtil.sendRaw(player,
+                    MessageUtil.PREFIX + " <gradient:#ffd86f:#fc6262>Token Boost upgraded to Level "
+                            + plugin.getHoeUpgradeManager().getTokenLevel(player)
                             + "!</gradient> <gray>(-" + NumberUtil.format(cost) + " Tokens)</gray>");
             gui.open(player);
         }

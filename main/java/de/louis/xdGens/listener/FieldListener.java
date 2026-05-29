@@ -26,7 +26,6 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class FieldListener implements Listener {
-
     private final Main plugin;
     private final FieldManager fieldManager;
     private final CurrencyManager currency;
@@ -42,13 +41,7 @@ public class FieldListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
 
-        if (player.getGameMode() == GameMode.CREATIVE) {
-            return;
-        }
-
-        if (block.getType() != Material.WHEAT) {
-            return;
-        }
+        if (player.getGameMode() == GameMode.CREATIVE || block.getType() != Material.WHEAT) return;
 
         ItemStack tool = player.getInventory().getItemInMainHand();
         if (!HoeUtil.isXdHoe(tool)) {
@@ -56,12 +49,7 @@ public class FieldListener implements Listener {
             return;
         }
 
-        if (!(block.getBlockData() instanceof Ageable ageable)) {
-            event.setCancelled(true);
-            return;
-        }
-
-        if (ageable.getAge() < ageable.getMaximumAge()) {
+        if (!(block.getBlockData() instanceof Ageable ageable) || ageable.getAge() < ageable.getMaximumAge()) {
             event.setCancelled(true);
             return;
         }
@@ -71,32 +59,27 @@ public class FieldListener implements Listener {
 
         int tokenMin = plugin.getConfig().getInt("rewards.wheat.tokens.min", 1);
         int tokenMax = plugin.getConfig().getInt("rewards.wheat.tokens.max", 5);
-
         double xpMin = plugin.getConfig().getDouble("rewards.wheat.xp.min", 8.0);
         double xpMax = plugin.getConfig().getDouble("rewards.wheat.xp.max", 16.0);
 
         int baseTokens = Rng.between(tokenMin, tokenMax);
         long finalTokens = Math.round(baseTokens * plugin.getHoeUpgradeManager().getTokenMultiplier(player));
-
-        double baseXp = Rng.between(xpMin, xpMax);
-        double finalXp = baseXp * plugin.getHoeUpgradeManager().getXpMultiplier(player);
+        double finalXp = Rng.between(xpMin, xpMax) * plugin.getHoeUpgradeManager().getXpMultiplier(player);
 
         int totalCrops = 1 + plugin.getHoeUpgradeManager().getCropBonus(player);
 
-        boolean inventoryFull = player.getInventory().firstEmpty() == -1;
-        if (inventoryFull) {
-            player.sendTitle(
-                    MessageUtil.strip("<red><bold>Inventory Full</bold></red>"),
-                    MessageUtil.strip("<gray>Free up some space before harvesting more.</gray>"),
-                    5, 30, 10
-            );
+        int stored = plugin.getBackpackManager().addWheat(player, totalCrops);
+        int remaining = totalCrops - stored;
+
+        if (stored > 0) {
+            plugin.getBackpackManager().savePlayer(player);
         }
 
-        ItemStack cropReward = CustomItemUtil.createFarmWheat(plugin, totalCrops);
-        var leftovers = player.getInventory().addItem(cropReward);
-        leftovers.values().forEach(left ->
-                player.getWorld().dropItemNaturally(player.getLocation(), left)
-        );
+        if (remaining > 0) {
+            ItemStack cropReward = CustomItemUtil.createFarmWheat(plugin, remaining);
+            var leftovers = player.getInventory().addItem(cropReward);
+            leftovers.values().forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+        }
 
         currency.addTokens(player, Math.toIntExact(finalTokens));
         plugin.getProgressionManager().addXp(player, finalXp);
@@ -109,56 +92,40 @@ public class FieldListener implements Listener {
     public void onMoistureChange(MoistureChangeEvent event) {
         if (event.getBlock().getType() == Material.FARMLAND) {
             event.setCancelled(true);
-            Bukkit.getScheduler().runTask(plugin, () ->
-                    FieldManager.moisturizeFarmland(event.getBlock()));
+            Bukkit.getScheduler().runTask(plugin, () -> FieldManager.moisturizeFarmland(event.getBlock()));
         }
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onBlockFade(BlockFadeEvent event) {
-        if (event.getBlock().getType() == Material.FARMLAND) {
-            event.setCancelled(true);
-        }
+        if (event.getBlock().getType() == Material.FARMLAND) event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onWaterFlow(BlockFromToEvent event) {
-        if (event.getToBlock().getType() == Material.FARMLAND) {
-            event.setCancelled(true);
-        }
+        if (event.getToBlock().getType() == Material.FARMLAND) event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
-        if (event.getBlock().getType() == Material.FARMLAND) {
-            event.setCancelled(true);
-        }
+        if (event.getBlock().getType() == Material.FARMLAND) event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onPhysicalInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.PHYSICAL || event.getClickedBlock() == null) {
-            return;
-        }
-
-        if (event.getClickedBlock().getType() == Material.FARMLAND) {
-            event.setCancelled(true);
-        }
+        if (event.getAction() != Action.PHYSICAL || event.getClickedBlock() == null) return;
+        if (event.getClickedBlock().getType() == Material.FARMLAND) event.setCancelled(true);
     }
 
     private void scheduleRegrow(Block block) {
         long delay = plugin.getConfig().getLong("field.regrow-delay-ticks", 100L);
-
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (block.getType() == Material.AIR || block.getType() == Material.WHEAT) {
                 block.setType(Material.WHEAT);
                 FieldManager.setWheatFullyGrown(block);
 
                 Block farmland = block.getRelative(0, -1, 0);
-                if (farmland.getType() != Material.FARMLAND) {
-                    farmland.setType(Material.FARMLAND);
-                }
-
+                if (farmland.getType() != Material.FARMLAND) farmland.setType(Material.FARMLAND);
                 FieldManager.moisturizeFarmland(farmland);
             }
         }, delay);

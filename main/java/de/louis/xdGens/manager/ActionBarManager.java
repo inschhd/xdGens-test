@@ -25,41 +25,43 @@ public class ActionBarManager {
         startTask();
     }
 
-    public void addHarvest(Player player, int tokens, double xp) {
+    public void addHarvest(Player player, long tokens, double xp) {
         UUID uuid = player.getUniqueId();
         PendingBar bar = pending.getOrDefault(uuid, new PendingBar());
+
         bar.tokens += tokens;
         bar.xp += xp;
         bar.ticksLeft = DISPLAY_TICKS;
+
         pending.put(uuid, bar);
     }
 
     private void startTask() {
-        task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            pending.entrySet().removeIf(entry -> {
-                UUID uuid = entry.getKey();
-                PendingBar bar = entry.getValue();
+        task = Bukkit.getScheduler().runTaskTimer(plugin, () ->
+                pending.entrySet().removeIf(entry -> {
+                    UUID uuid = entry.getKey();
+                    PendingBar bar = entry.getValue();
 
-                Player player = Bukkit.getPlayer(uuid);
-                if (player == null || !player.isOnline()) {
-                    return true;
-                }
+                    Player player = Bukkit.getPlayer(uuid);
+                    if (player == null || !player.isOnline()) {
+                        return true;
+                    }
 
-                bar.ticksLeft -= 2;
-                player.sendActionBar(buildBar(bar));
+                    bar.ticksLeft -= 2;
+                    player.sendActionBar(buildBar(bar));
 
-                return bar.ticksLeft <= 0;
-            });
-        }, 0L, 2L);
+                    return bar.ticksLeft <= 0;
+                }), 0L, 2L);
     }
 
     private Component buildBar(PendingBar bar) {
-        String text = "<gray>+</gray><gradient:#7afcff:#00c2ff><bold>"
-                + NumberUtil.format(bar.tokens)
-                + "</bold></gradient><gray> Tokens</gray>"
-                + "  <gray>+</gray><gradient:#f6d365:#fda085><bold>"
-                + NumberUtil.format(bar.xp)
-                + "</bold></gradient><gray> XP</gray>";
+        String text =
+                "<gray>⟡ </gray><gradient:#7afcff:#00c2ff><bold>"
+                        + NumberUtil.format(bar.tokens)
+                        + "</bold></gradient><gray> Tokens</gray> <dark_gray>|</dark_gray> "
+                        + "<gradient:#f6d365:#fda085><bold>"
+                        + NumberUtil.format(bar.xp)
+                        + "</bold></gradient><gray> XP</gray>";
 
         return MessageUtil.parse(text);
     }
@@ -72,7 +74,7 @@ public class ActionBarManager {
     }
 
     private static class PendingBar {
-        int tokens = 0;
+        long tokens = 0L;
         double xp = 0.0;
         int ticksLeft = 0;
     }

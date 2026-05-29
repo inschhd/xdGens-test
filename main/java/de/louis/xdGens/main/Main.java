@@ -1,21 +1,19 @@
 package de.louis.xdGens.main;
 
-import de.louis.xdGens.command.PrestigeCommand;
-import de.louis.xdGens.command.TestFieldCommand;
-import de.louis.xdGens.command.WorkstationCommand;
+import de.louis.xdGens.command.*;
 import de.louis.xdGens.field.FieldManager;
-import de.louis.xdGens.hologram.HologramManager;
 import de.louis.xdGens.listener.DropListener;
 import de.louis.xdGens.listener.FieldListener;
 import de.louis.xdGens.listener.HoeProtectionListener;
 import de.louis.xdGens.listener.HoeUpgradeListener;
 import de.louis.xdGens.listener.JoinListener;
 import de.louis.xdGens.listener.LobbyProtectionListener;
+import de.louis.xdGens.listener.ShopListener;
 import de.louis.xdGens.listener.WorkstationListener;
 import de.louis.xdGens.manager.ActionBarManager;
+import de.louis.xdGens.manager.BackpackManager;
 import de.louis.xdGens.manager.CurrencyManager;
 import de.louis.xdGens.manager.HoeUpgradeManager;
-
 import de.louis.xdGens.manager.ProgressionManager;
 import de.louis.xdGens.manager.ScoreboardManager;
 import de.louis.xdGens.manager.WorkstationManager;
@@ -34,6 +32,7 @@ public final class Main extends JavaPlugin {
     private ScoreboardManager scoreboardManager;
     private ProgressionManager progressionManager;
     private HoeUpgradeManager hoeUpgradeManager;
+    private BackpackManager backpackManager;
     private LobbyProtectionListener lobbyProtectionListener;
 
     @Override
@@ -50,6 +49,7 @@ public final class Main extends JavaPlugin {
         this.scoreboardManager = new ScoreboardManager(this);
         this.progressionManager = new ProgressionManager(this);
         this.hoeUpgradeManager = new HoeUpgradeManager(this);
+        this.backpackManager = new BackpackManager(this);
         this.lobbyProtectionListener = new LobbyProtectionListener(this);
 
         getServer().getPluginManager().registerEvents(new FieldListener(this), this);
@@ -58,6 +58,7 @@ public final class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WorkstationListener(this, workstationManager), this);
         getServer().getPluginManager().registerEvents(new HoeProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new HoeUpgradeListener(this), this);
+        getServer().getPluginManager().registerEvents(new ShopListener(this), this);
         getServer().getPluginManager().registerEvents(lobbyProtectionListener, this);
 
         lobbyProtectionListener.applyToAllWorlds();
@@ -79,8 +80,22 @@ public final class Main extends JavaPlugin {
             getCommand("workstation").setExecutor(new WorkstationCommand(this));
         }
 
+        if (getCommand("xdadmin") != null) {
+            XdAdminCommand xdAdminCommand = new XdAdminCommand(this);
+            getCommand("xdadmin").setExecutor(xdAdminCommand);
+            getCommand("xdadmin").setTabCompleter(xdAdminCommand);
+        }
+
         if (getCommand("prestige") != null) {
             getCommand("prestige").setExecutor(new PrestigeCommand(this));
+        }
+
+        if (getCommand("shop") != null) {
+            getCommand("shop").setExecutor(new ShopCommand(this));
+        }
+
+        if (getCommand("sell") != null) {
+            getCommand("sell").setExecutor(new SellCommand(this));
         }
 
         getLogger().info(MessageUtil.strip(MessageUtil.PREFIX + " <green>Plugin enabled.</green>"));
@@ -98,6 +113,10 @@ public final class Main extends JavaPlugin {
 
         if (hoeUpgradeManager != null) {
             hoeUpgradeManager.saveAll();
+        }
+
+        if (backpackManager != null) {
+            backpackManager.saveAll();
         }
 
         if (workstationManager != null) {
@@ -123,7 +142,7 @@ public final class Main extends JavaPlugin {
         return currencyManager;
     }
 
-    public HologramManager getHologramManager() {
+    public de.louis.xdGens.hologram.HologramManager getHologramManager() {
         return hologramManager;
     }
 
@@ -145,5 +164,9 @@ public final class Main extends JavaPlugin {
 
     public HoeUpgradeManager getHoeUpgradeManager() {
         return hoeUpgradeManager;
+    }
+
+    public BackpackManager getBackpackManager() {
+        return backpackManager;
     }
 }

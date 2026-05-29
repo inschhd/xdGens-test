@@ -2,6 +2,7 @@ package de.louis.xdGens.manager;
 
 import de.louis.xdGens.main.Main;
 import de.louis.xdGens.util.MessageUtil;
+import de.louis.xdGens.util.NumberUtil;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -13,6 +14,12 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ProgressionManager {
+
+    private static final int BASE_PRESTIGE_LEVEL = 50;
+    private static final int PRESTIGE_LEVEL_STEP = 10;
+
+    private static final double BASE_PRESTIGE_COST = 250000.0;
+    private static final double PRESTIGE_COST_STEP = 150000.0;
 
     private final Main plugin;
     private final Map<UUID, PlayerProgress> data = new HashMap<>();
@@ -60,6 +67,16 @@ public class ProgressionManager {
                 progress.level = Math.max(1, level);
                 progress.prestige = Math.max(0, prestige);
                 progress.xp = Math.max(0.0, xp);
+
+                int maxLevelForPrestige = getRequiredLevelForPrestige(progress.prestige);
+                if (progress.level > maxLevelForPrestige) {
+                    progress.level = maxLevelForPrestige;
+                }
+
+                int requiredXp = getRequiredXp(progress.level, progress.prestige);
+                if (progress.xp > requiredXp) {
+                    progress.xp = requiredXp;
+                }
 
                 data.put(uuid, progress);
             } catch (IllegalArgumentException ignored) {
@@ -112,14 +129,15 @@ public class ProgressionManager {
 
         PlayerProgress progress = getOrCreate(player.getUniqueId());
 
-        if (canPrestige(player)) {
+        if (isMaxLevel(player)) {
+            progress.xp = getRequiredXp(player);
             updateDisplays(player);
             return;
         }
 
         progress.xp += amount;
 
-        while (!canPrestige(player) && progress.xp >= getRequiredXp(player)) {
+        while (!isMaxLevel(player) && progress.xp >= getRequiredXp(player)) {
             progress.xp -= getRequiredXp(player);
             progress.level++;
 
@@ -128,21 +146,52 @@ public class ProgressionManager {
                             + progress.level + "</gradient><gray>!</gray>");
         }
 
-        if (canPrestige(player)) {
+        if (isMaxLevel(player)) {
             progress.xp = getRequiredXp(player);
             MessageUtil.sendRaw(player,
-                    MessageUtil.PREFIX + " <gradient:#f6d365:#fda085>You can now prestige!</gradient>");
+                    MessageUtil.PREFIX
+                            + " <gradient:#f6d365:#fda085>You reached the required level for prestige!</gradient>"
+                            + " <gray>Use</gray> <yellow>/prestige</yellow><gray> when you have </gray><green>$"
+                            + NumberUtil.format(getPrestigeCost(player)) + "</green><gray>.</gray>");
         }
 
         updateDisplays(player);
     }
 
     public boolean canPrestige(Player player) {
-        return getLevel(player) >= getMaxLevel();
+        return getLevel(player) >= getRequiredLevelForPrestige(player)
+                && plugin.getCurrencyManager().getMoney(player) >= getPrestigeCost(player);
+    }
+
+    public boolean isMaxLevel(Player player) {
+        return getLevel(player) >= getMaxLevelForPlayer(player);
+    }
+
+    public int getRequiredLevelForPrestige(Player player) {
+        return getRequiredLevelForPrestige(getPrestige(player));
+    }
+
+    private int getRequiredLevelForPrestige(int prestige) {
+        return BASE_PRESTIGE_LEVEL + (prestige * PRESTIGE_LEVEL_STEP);
+    }
+
+    public int getMaxLevelForPlayer(Player player) {
+        return getRequiredLevelForPrestige(player);
+    }
+
+    public double getPrestigeCost(Player player) {
+        return BASE_PRESTIGE_COST + (getPrestige(player) * PRESTIGE_COST_STEP);
     }
 
     public boolean prestige(Player player) {
-        if (!canPrestige(player)) {
+        int requiredLevel = getRequiredLevelForPrestige(player);
+        double cost = getPrestigeCost(player);
+
+        if (getLevel(player) < requiredLevel) {
+            return false;
+        }
+
+        if (!plugin.getCurrencyManager().removeMoney(player, cost)) {
             return false;
         }
 
@@ -151,9 +200,13 @@ public class ProgressionManager {
         progress.level = 1;
         progress.xp = 0.0;
 
+        savePlayer(player);
+
         MessageUtil.sendRaw(player,
                 MessageUtil.PREFIX + " <gray>You advanced to <gradient:#f6d365:#fda085>Prestige "
-                        + progress.prestige + "</gradient><gray>!</gray>");
+                        + progress.prestige + "</gradient><gray>!</gray> <gray>(-</gray><green>$"
+                        + NumberUtil.format(cost) + "</green><gray>)</gray> <gray>Next prestige at Level </gray><yellow>"
+                        + getRequiredLevelForPrestige(player) + "</yellow><gray>.</gray>");
 
         updateDisplays(player);
         return true;
@@ -172,10 +225,13 @@ public class ProgressionManager {
     }
 
     public int getRequiredXp(Player player) {
-        int level = getLevel(player);
-        int prestige = getPrestige(player);
+        return getRequiredXp(getLevel(player), getPrestige(player));
+    }
 
-        if (level >= getMaxLevel()) {
+    private int getRequiredXp(int level, int prestige) {
+        int maxLevel = getRequiredLevelForPrestige(prestige);
+
+        if (level >= maxLevel) {
             return 1000 + (prestige * 250);
         }
 
@@ -183,7 +239,7 @@ public class ProgressionManager {
     }
 
     public int getMaxLevel() {
-        return 50;
+        return BASE_PRESTIGE_LEVEL;
     }
 
     public void updateDisplays(Player player) {
@@ -201,7 +257,7 @@ public class ProgressionManager {
 
         player.setLevel(level);
 
-        if (canPrestige(player)) {
+        if (isMaxLevel(player)) {
             player.setExp(1.0f);
             return;
         }

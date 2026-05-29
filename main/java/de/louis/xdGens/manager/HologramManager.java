@@ -2,58 +2,115 @@ package de.louis.xdGens.hologram;
 
 import de.louis.xdGens.main.Main;
 import de.louis.xdGens.util.MessageUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.EntityType;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class HologramManager {
 
-    public static final String HOLOGRAM_TAG = "xdgens_hologram";
-
     private final Main plugin;
-    private final NamespacedKey holoKey;
     private final Map<String, ArmorStand> holograms = new HashMap<>();
 
     public HologramManager(Main plugin) {
         this.plugin = plugin;
-        this.holoKey = new NamespacedKey(plugin, HOLOGRAM_TAG);
     }
 
-    public ArmorStand spawn(Location location) {
-        removeAt(location);
+    public void spawn(Location baseLocation) {
+        if (baseLocation == null || baseLocation.getWorld() == null) {
+            return;
+        }
 
-        Location holoLoc = location.clone().add(0.5, 1.4, 0.5);
+        Location blockLocation = normalize(baseLocation);
+        String key = key(blockLocation);
 
-        ArmorStand stand = (ArmorStand) holoLoc.getWorld().spawnEntity(holoLoc, EntityType.ARMOR_STAND);
-        stand.setInvisible(true);
-        stand.setInvulnerable(true);
-        stand.setGravity(false);
-        stand.setMarker(true);
-        stand.setSmall(true);
-        stand.setCustomNameVisible(true);
-        stand.customName(MessageUtil.parse(
-                "<gradient:#a18cd1:#fbc2eb><bold>⚙ Wheat Workstation</bold></gradient>"
+        removeAt(blockLocation);
 
-        ));
+        if (!blockLocation.isWorldLoaded()) {
+            return;
+        }
 
-        // PDC-Tag damit wir sie nach Crash aufräumen können
-        stand.getPersistentDataContainer().set(holoKey, PersistentDataType.BYTE, (byte) 1);
+        if (!blockLocation.getChunk().isLoaded()) {
+            blockLocation.getChunk().load();
+        }
 
-        holograms.put(toKey(location), stand);
-        return stand;
+        Location holoLocation = blockLocation.clone().add(0.5, 1.35, 0.5);
+
+        ArmorStand stand = blockLocation.getWorld().spawn(holoLocation, ArmorStand.class, armorStand -> {
+            armorStand.setVisible(false);
+            armorStand.setGravity(false);
+            armorStand.setMarker(true);
+            armorStand.setSmall(true);
+            armorStand.setCustomNameVisible(true);
+            armorStand.customName(MessageUtil.parse("<gradient:#a18cd1:#fbc2eb><bold>ᴡᴏʀᴋѕᴛᴀᴛɪᴏɴ</bold></gradient>"));
+            armorStand.setPersistent(false);
+            armorStand.setInvulnerable(true);
+            armorStand.setCollidable(false);
+            armorStand.setCanPickupItems(false);
+            armorStand.setSilent(true);
+        });
+
+        holograms.put(key, stand);
     }
 
-    public void removeAt(Location location) {
-        String key = toKey(location);
-        ArmorStand existing = holograms.remove(key);
-        if (existing != null && !existing.isDead()) {
-            existing.remove();
+    public void removeAt(Location baseLocation) {
+        if (baseLocation == null || baseLocation.getWorld() == null) {
+            return;
+        }
+
+        String key = key(normalize(baseLocation));
+        ArmorStand stand = holograms.remove(key);
+
+        if (stand != null && !stand.isDead()) {
+            stand.remove();
+        }
+
+        cleanupNearby(normalize(baseLocation));
+    }
+
+    public void cleanupStaleHolograms() {
+        Set<String> deadKeys = new HashSet<>();
+
+        for (Map.Entry<String, ArmorStand> entry : holograms.entrySet()) {
+            ArmorStand stand = entry.getValue();
+            if (stand == null || stand.isDead() || !stand.isValid()) {
+                deadKeys.add(entry.getKey());
+                continue;
+            }
+
+            if (stand.customName() == null) {
+                stand.remove();
+                deadKeys.add(entry.getKey());
+            }
+        }
+
+        deadKeys.forEach(holograms::remove);
+
+        for (World world : Bukkit.getWorlds()) {
+            for (ArmorStand stand : world.getEntitiesByClass(ArmorStand.class)) {
+                if (!stand.isMarker()) {
+                    continue;
+                }
+
+                if (!stand.isCustomNameVisible() || stand.customName() == null) {
+                    continue;
+                }
+
+                String plain = MessageUtil.strip(String.valueOf(stand.customName()));
+                if (!plain.equalsIgnoreCase("ᴡᴏʀᴋѕᴛᴀᴛɪᴏɴ") && !plain.equalsIgnoreCase("workstation")) {
+                    continue;
+                }
+
+                boolean tracked = holograms.values().stream().anyMatch(existing -> existing.getUniqueId().equals(stand.getUniqueId()));
+                if (!tracked) {
+                    stand.remove();
+                }
+            }
         }
     }
 
@@ -66,28 +123,47 @@ public class HologramManager {
         holograms.clear();
     }
 
-    /**
-     * Räumt alle alten xdGens-Hologram-Entities in allen Welten auf.
-     * Wichtig nach Crashes, damit keine verwaisten ArmorStands übrig bleiben.
-     */
-    public void cleanupStaleHolograms() {
-        for (World world : plugin.getServer().getWorlds()) {
-            world.getEntitiesByClass(ArmorStand.class).forEach(stand -> {
-                if (stand.getPersistentDataContainer().has(holoKey, PersistentDataType.BYTE)) {
-                    stand.remove();
-                }
-            });
+    private void cleanupNearby(Location baseLocation) {
+        World world = baseLocation.getWorld();
+        if (world == null) {
+            return;
+        }
+
+        Location center = baseLocation.clone().add(0.5, 1.35, 0.5);
+
+        for (ArmorStand stand : world.getEntitiesByClass(ArmorStand.class)) {
+            if (stand.getLocation().distanceSquared(center) > 0.25) {
+                continue;
+            }
+
+            if (!stand.isMarker()) {
+                continue;
+            }
+
+            if (!stand.isCustomNameVisible() || stand.customName() == null) {
+                continue;
+            }
+
+            String plain = MessageUtil.strip(String.valueOf(stand.customName()));
+            if (plain.equalsIgnoreCase("ᴡᴏʀᴋѕᴛᴀᴛɪᴏɴ") || plain.equalsIgnoreCase("workstation")) {
+                stand.remove();
+            }
         }
     }
 
-    public boolean hasHologram(Location location) {
-        return holograms.containsKey(toKey(location));
+    private Location normalize(Location location) {
+        return new Location(
+                location.getWorld(),
+                location.getBlockX(),
+                location.getBlockY(),
+                location.getBlockZ()
+        );
     }
 
-    private String toKey(Location loc) {
-        return loc.getWorld().getName()
-                + ":" + loc.getBlockX()
-                + ":" + loc.getBlockY()
-                + ":" + loc.getBlockZ();
+    private String key(Location location) {
+        return location.getWorld().getName()
+                + ":" + location.getBlockX()
+                + ":" + location.getBlockY()
+                + ":" + location.getBlockZ();
     }
 }

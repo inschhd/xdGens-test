@@ -19,11 +19,9 @@ import java.util.List;
 import java.util.Set;
 
 public class WorkstationManager {
-
     private final Main plugin;
     private final de.louis.xdGens.hologram.HologramManager hologramManager;
     private final Set<String> workstations = new HashSet<>();
-
     private File dataFile;
     private FileConfiguration dataConfig;
 
@@ -36,59 +34,39 @@ public class WorkstationManager {
 
     private void setupFile() {
         dataFile = new File(plugin.getDataFolder(), "workstations.yml");
-        if (!dataFile.exists()) {
-            try {
-                dataFile.createNewFile();
-            } catch (IOException e) {
-                plugin.getLogger().severe("Could not create workstations.yml: " + e.getMessage());
-            }
+        try {
+            if (!dataFile.exists()) dataFile.createNewFile();
+        } catch (IOException e) {
+            plugin.getLogger().severe("Could not create workstations.yml: " + e.getMessage());
         }
         dataConfig = YamlConfiguration.loadConfiguration(dataFile);
     }
 
     private void loadAll() {
         hologramManager.cleanupStaleHolograms();
-
         List<?> list = dataConfig.getList("workstations");
-        if (list == null) {
-            return;
-        }
+        if (list == null) return;
 
         for (Object obj : list) {
-            if (!(obj instanceof String entry)) {
-                continue;
-            }
-
+            if (!(obj instanceof String entry)) continue;
             Location loc = deserialize(entry);
-            if (loc == null) {
-                plugin.getLogger().warning("Could not load workstation: " + entry);
-                continue;
-            }
-
+            if (loc == null) continue;
             workstations.add(entry);
-
-            String finalEntry = entry;
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                Location loaded = deserialize(finalEntry);
-                if (loaded != null) {
-                    hologramManager.spawn(loaded);
-                }
+                Location loaded = deserialize(entry);
+                if (loaded != null) hologramManager.spawn(loaded);
             }, 5L);
         }
-
-        plugin.getLogger().info("Workstations loaded: " + workstations.size());
     }
 
     public void register(Location location) {
-        String key = serialize(location);
-        workstations.add(key);
+        workstations.add(serialize(location));
         hologramManager.spawn(location);
         save();
     }
 
     public void unregister(Location location) {
-        String key = serialize(location);
-        workstations.remove(key);
+        workstations.remove(serialize(location));
         hologramManager.removeAt(location);
         save();
     }
@@ -102,7 +80,6 @@ public class WorkstationManager {
 
         int wheat = count(inv, "farm_wheat");
         int wheatBlocksCreated = wheat / 64;
-
         if (wheatBlocksCreated > 0) {
             remove(inv, "farm_wheat", wheatBlocksCreated * 64);
             giveOrDrop(player, CustomItemUtil.createCompressedWheatBlock(plugin, wheatBlocksCreated));
@@ -110,10 +87,9 @@ public class WorkstationManager {
 
         int wheatBlocks = count(inv, "compressed_wheat_block");
         int enchantedCreated = wheatBlocks / 64;
-
         if (enchantedCreated > 0) {
             remove(inv, "compressed_wheat_block", enchantedCreated * 64);
-            giveOrDrop(player, CustomItemUtil.createEnchantedWheatBale(plugin, enchantedCreated));
+            giveOrDrop(player, CustomItemUtil.createCompressedWheatBlock(plugin, enchantedCreated));
         }
 
         if (wheatBlocksCreated == 0 && enchantedCreated == 0) {
@@ -121,10 +97,7 @@ public class WorkstationManager {
             return;
         }
 
-        MessageUtil.sendRaw(player,
-                MessageUtil.PREFIX
-                        + " <gradient:#7afcff:#00c2ff>Auto craft complete</gradient>"
-                        + " <gray>(Blocks: " + wheatBlocksCreated + ", Enchanted: " + enchantedCreated + ")</gray>");
+        MessageUtil.sendRaw(player, MessageUtil.PREFIX + " <gradient:#7afcff:#00c2ff>Auto craft complete</gradient>");
     }
 
     public void removeAll() {
@@ -141,30 +114,17 @@ public class WorkstationManager {
     }
 
     private String serialize(Location loc) {
-        return loc.getWorld().getName()
-                + ":" + loc.getBlockX()
-                + ":" + loc.getBlockY()
-                + ":" + loc.getBlockZ();
+        return loc.getWorld().getName() + ":" + loc.getBlockX() + ":" + loc.getBlockY() + ":" + loc.getBlockZ();
     }
 
     private Location deserialize(String key) {
-        String[] parts = key.split(":");
-        if (parts.length != 4) {
-            return null;
-        }
-
-        World world = Bukkit.getWorld(parts[0]);
-        if (world == null) {
-            return null;
-        }
+        String[] p = key.split(":");
+        if (p.length != 4) return null;
+        World world = Bukkit.getWorld(p[0]);
+        if (world == null) return null;
 
         try {
-            return new Location(
-                    world,
-                    Integer.parseInt(parts[1]),
-                    Integer.parseInt(parts[2]),
-                    Integer.parseInt(parts[3])
-            );
+            return new Location(world, Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
         } catch (NumberFormatException e) {
             return null;
         }
@@ -172,42 +132,29 @@ public class WorkstationManager {
 
     private int count(Inventory inv, String type) {
         int total = 0;
-
         for (ItemStack item : inv.getContents()) {
-            if (CustomItemUtil.hasItemType(plugin, item, type)) {
-                total += item.getAmount();
-            }
+            if (CustomItemUtil.hasItemType(plugin, item, type)) total += item.getAmount();
         }
-
         return total;
     }
 
     private void remove(Inventory inv, String type, int amount) {
         int left = amount;
-
         for (int i = 0; i < inv.getSize(); i++) {
             ItemStack item = inv.getItem(i);
-            if (!CustomItemUtil.hasItemType(plugin, item, type)) {
-                continue;
-            }
+            if (!CustomItemUtil.hasItemType(plugin, item, type)) continue;
 
             int take = Math.min(left, item.getAmount());
             item.setAmount(item.getAmount() - take);
             left -= take;
 
-            if (item.getAmount() <= 0) {
-                inv.setItem(i, null);
-            }
-
-            if (left <= 0) {
-                return;
-            }
+            if (item.getAmount() <= 0) inv.setItem(i, null);
+            if (left <= 0) return;
         }
     }
 
     private void giveOrDrop(Player player, ItemStack item) {
         var leftover = player.getInventory().addItem(item);
-        leftover.values().forEach(left ->
-                player.getWorld().dropItemNaturally(player.getLocation(), left));
+        leftover.values().forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
     }
 }

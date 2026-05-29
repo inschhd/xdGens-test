@@ -56,7 +56,6 @@ public class HoeUpgradeGUI {
         lore.add(MessageUtil.parse("<gray>Harvest more wheat per break.</gray>"));
         lore.add(MessageUtil.parse("<dark_gray>Each level adds +1 extra crop.</dark_gray>"));
         lore.add(MessageUtil.parse(" "));
-
         lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#f6d365:#fda085>" + current + "</gradient>"));
         lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#f6d365:#fda085>+" + current + " crops</gradient>"));
         lore.add(MessageUtil.parse("<gray>Max Level: <gradient:#f6d365:#fda085>" + HoeUpgradeManager.MAX_CROP_LEVEL + "</gradient>"));
@@ -106,7 +105,6 @@ public class HoeUpgradeGUI {
         lore.add(MessageUtil.parse("<gray>Gain more XP from harvesting.</gray>"));
         lore.add(MessageUtil.parse("<dark_gray>Each level adds +2% XP.</dark_gray>"));
         lore.add(MessageUtil.parse(" "));
-
         lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#7afcff:#00c2ff>" + current + "</gradient>"));
         lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#7afcff:#00c2ff>+"
                 + NumberUtil.format(manager.getXpPercentBonus(player)) + "% XP</gradient>"));
@@ -157,7 +155,6 @@ public class HoeUpgradeGUI {
         lore.add(MessageUtil.parse("<gray>Gain more tokens from harvesting.</gray>"));
         lore.add(MessageUtil.parse("<dark_gray>Each level adds +2% Tokens.</dark_gray>"));
         lore.add(MessageUtil.parse(" "));
-
         lore.add(MessageUtil.parse("<gray>Current Level: <gradient:#ffd86f:#fc6262>" + current + "</gradient>"));
         lore.add(MessageUtil.parse("<gray>Current Bonus: <gradient:#ffd86f:#fc6262>+"
                 + NumberUtil.format(manager.getTokenPercentBonus(player)) + "% Tokens</gradient>"));

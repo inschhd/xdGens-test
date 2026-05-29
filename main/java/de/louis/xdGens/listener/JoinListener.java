@@ -21,7 +21,7 @@ public class JoinListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        if (!player.hasPlayedBefore()) {
+        if (!player.hasPlayedBefore() && !player.getInventory().containsAtLeast(HoeUtil.createStarterHoe(plugin), 1)) {
             player.getInventory().addItem(HoeUtil.createStarterHoe(plugin));
             MessageUtil.sendRaw(
                     player,
@@ -38,6 +38,10 @@ public class JoinListener implements Listener {
         if (plugin.getProgressionManager() != null) {
             plugin.getProgressionManager().updateDisplays(player);
         }
+
+        if (plugin.getHoeUpgradeManager() != null) {
+            plugin.getHoeUpgradeManager().applyHoeStats(player);
+        }
     }
 
     @EventHandler
@@ -49,11 +53,19 @@ public class JoinListener implements Listener {
         }
 
         if (plugin.getCurrencyManager() != null) {
-            plugin.getCurrencyManager().saveAll();
+            plugin.getCurrencyManager().savePlayer(player);
         }
 
         if (plugin.getProgressionManager() != null) {
-            plugin.getProgressionManager().saveAll();
+            plugin.getProgressionManager().savePlayer(player);
+        }
+
+        if (plugin.getHoeUpgradeManager() != null) {
+            plugin.getHoeUpgradeManager().saveAll();
+        }
+
+        if (plugin.getBackpackManager() != null) {
+            plugin.getBackpackManager().savePlayer(player);
         }
     }
 }

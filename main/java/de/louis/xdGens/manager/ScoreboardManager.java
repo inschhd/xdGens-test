@@ -38,25 +38,22 @@ public class ScoreboardManager {
         );
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
 
-        createLine(board, objective, "blank_top", "§0", 12);
+        createLine(board, objective, "blank_top", "§0", 10);
 
-        createLine(board, objective, "money_title", "§1", 11);
-        createLine(board, objective, "money_value", "§2", 10);
+        createLine(board, objective, "money_title", "§1", 9);
+        createLine(board, objective, "money_value", "§2", 8);
 
-        createLine(board, objective, "tokens_title", "§3", 9);
-        createLine(board, objective, "tokens_value", "§4", 8);
+        createLine(board, objective, "tokens_title", "§3", 7);
+        createLine(board, objective, "tokens_value", "§4", 6);
 
-        createLine(board, objective, "level_title", "§5", 7);
-        createLine(board, objective, "level_value", "§6", 6);
+        createLine(board, objective, "level_title", "§5", 5);
+        createLine(board, objective, "level_value", "§6", 4);
 
-        createLine(board, objective, "prestige_title", "§7", 5);
-        createLine(board, objective, "prestige_value", "§8", 4);
+        createLine(board, objective, "prestige_title", "§7", 3);
+        createLine(board, objective, "prestige_value", "§8", 2);
 
-        createLine(board, objective, "xp_title", "§9", 3);
-        createLine(board, objective, "xp_value", "§a", 2);
-
-        createLine(board, objective, "blank_bottom", "§b", 1);
-        createLine(board, objective, "footer", "§c", 0);
+        createLine(board, objective, "blank_bottom", "§9", 1);
+        createLine(board, objective, "footer", "§a", 0);
 
         boards.put(player.getUniqueId(), board);
         player.setScoreboard(board);
@@ -85,24 +82,12 @@ public class ScoreboardManager {
 
         setPrefix(board, "level_title", "<gray>Level</gray>");
         setPrefix(board, "level_value",
-                "<gradient:#7afcff:#00c2ff>" + progression.getLevel(player) + "/" + progression.getMaxLevel() + "</gradient>");
+                "<gradient:#7afcff:#00c2ff>" + progression.getLevel(player)
+                        + "/" + progression.getMaxLevelForPlayer(player) + "</gradient>");
 
         setPrefix(board, "prestige_title", "<gray>Prestige</gray>");
         setPrefix(board, "prestige_value",
                 "<gradient:#a18cd1:#fbc2eb>" + progression.getPrestige(player) + "</gradient>");
-
-        setPrefix(board, "xp_title", "<gray>XP</gray>");
-
-        if (progression.canPrestige(player)) {
-            setPrefix(board, "xp_value",
-                    "<gradient:#f6d365:#fda085><bold>READY TO PRESTIGE</bold></gradient>");
-        } else {
-            setPrefix(board, "xp_value",
-                    "<gradient:#f6d365:#fda085>"
-                            + NumberUtil.format(progression.getXp(player))
-                            + "/" + NumberUtil.format(progression.getRequiredXp(player))
-                            + "</gradient>");
-        }
 
         setPrefix(board, "blank_bottom", "<dark_gray>  </dark_gray>");
         setPrefix(board, "footer", "<dark_gray>play.xdgens</dark_gray>");
@@ -135,6 +120,6 @@ public class ScoreboardManager {
             return;
         }
 
-        team.prefix(mini.deserialize(text));
+        team.prefix(MiniMessage.miniMessage().deserialize(text));
     }
 }

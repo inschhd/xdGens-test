@@ -15,6 +15,14 @@ commands:
     description: Get a wheat workstation
   prestige:
     description: Prestige once you reach the max level
+  sell:
+    description: Sell all farm items in your inventory
+  shop:
+    description: Open the xdGens shop
+  xdadmin:
+    description: Admin command for xdGens
+    usage: /xdadmin
+    permission: xdgens.admin
 
 permissions:
   xdgens.admin:
