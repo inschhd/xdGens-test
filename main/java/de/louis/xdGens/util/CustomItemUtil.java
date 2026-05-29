@@ -1,21 +1,32 @@
 package de.louis.xdGens.util;
 
 import de.louis.xdGens.main.Main;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class CustomItemUtil {
 
     public static final String ITEM_KEY        = "xdgens_item";
     public static final String ITEM_TYPE_KEY   = "xdgens_item_type";
     public static final String ITEM_AMOUNT_KEY = "xdgens_item_amount";
+
+    // Backpack skull — "Backpack" head from minecraft-heads.com
+    private static final String BACKPACK_SKULL_URL =
+            "https://textures.minecraft.net/texture/3a95e6f808843f5ff32a4fc3d5abad8bccf7cb4fcf66f39eec0ded41416a5c";
 
     public static ItemStack createFarmWheat(Main plugin, int amount) {
         ItemStack item = new ItemStack(Material.WHEAT, Math.max(1, amount));
@@ -71,8 +82,20 @@ public class CustomItemUtil {
     }
 
     public static ItemStack createBackpackItem(Main plugin, org.bukkit.entity.Player player) {
-        ItemStack item = new ItemStack(Material.BUNDLE);
-        ItemMeta meta = item.getItemMeta();
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) item.getItemMeta();
+
+        // Apply backpack texture via Paper PlayerProfile API (works on 1.21+)
+        try {
+            PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID());
+            PlayerTextures textures = profile.getTextures();
+            textures.setSkin(new URL(BACKPACK_SKULL_URL));
+            profile.setTextures(textures);
+            meta.setPlayerProfile(profile);
+        } catch (MalformedURLException e) {
+            // Fallback: plain player head without texture
+        }
+
         meta.displayName(MessageUtil.parse("<gradient:#84fab0:#8fd3f4><bold>Crop Backpack</bold></gradient>"));
         List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
         lore.add(MessageUtil.parse("<gray>Left-click to open.</gray>"));
