@@ -98,6 +98,10 @@ public final class Main extends JavaPlugin {
             getCommand("sell").setExecutor(new SellCommand(this));
         }
 
+        if (getCommand("diamond") != null) {
+            getCommand("diamond").setExecutor(new DiamondCommand());
+        }
+
         getLogger().info(MessageUtil.strip(MessageUtil.PREFIX + " <green>Plugin enabled.</green>"));
     }
 
