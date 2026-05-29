@@ -75,59 +75,101 @@ public class WorkstationManager {
 
     public List<Location> getWorkstationLocations() {
         List<Location> locations = new ArrayList<>();
-        for (String entry : workstations) {
-            Location loc = deserialize(entry);
-            if (loc != null) locations.add(loc);
-        }
+        for (String entry : workstations)
+            locations.add(deserialize(entry));
+        locations.removeIf(l -> l == null);
         return locations;
     }
 
     /**
      * Right-click craft logic:
-     *  1. farm_wheat (inv + backpack) -> compressed_wheat_block  (64:1)
-     *  2. compressed_wheat_block (inv) -> enchanted_wheat_bale   (64:1)
+     *  Sources:  inv farm_wheat + BP farm_wheat
+     *            inv compressed_wheat_block + BP compressed_wheat_block
+     *
+     *  Step 1: (inv wheat + bp wheat) -> compressed_wheat_block (64:1)
+     *          result goes into BP first, overflow to inv
+     *  Step 2: (inv blocks + bp blocks) -> enchanted_wheat_bale (64:1)
+     *          result goes into BP first, overflow to inv
      */
     public void useWorkstation(Player player) {
-        Inventory inv = player.getInventory();
+        BackpackManager bp  = plugin.getBackpackManager();
+        Inventory       inv = player.getInventory();
+        boolean hasBp       = bp.playerHasItem(player);
 
-        // Step 1: farm_wheat -> compressed_wheat_block
+        int blocksCreated = 0;
+        int balesCreated  = 0;
+
+        // ── Step 1: wheat → blocks ───────────────────────────────────────────
         int wheatInInv = count(inv, "farm_wheat");
-        int wheatInBp  = plugin.getBackpackManager().getStoredWheat(player);
+        int wheatInBp  = hasBp ? bp.getStoredWheat(player) : 0;
         int totalWheat = wheatInInv + wheatInBp;
-        int blocksCreated = totalWheat / 64;
+        blocksCreated  = totalWheat / 64;
 
         if (blocksCreated > 0) {
-            int wheatNeeded    = blocksCreated * 64;
-            int removeFromInv  = Math.min(wheatInInv, wheatNeeded);
-            int removeFromBp   = wheatNeeded - removeFromInv;
-            remove(inv, "farm_wheat", removeFromInv);
-            if (removeFromBp > 0) {
-                plugin.getBackpackManager().removeWheat(player, removeFromBp);
-                plugin.getBackpackManager().savePlayer(player);
+            int wheatNeeded   = blocksCreated * 64;
+            // Remove from inv first, then BP
+            int fromInv       = Math.min(wheatInInv, wheatNeeded);
+            int fromBp        = wheatNeeded - fromInv;
+            remove(inv, "farm_wheat", fromInv);
+            if (fromBp > 0 && hasBp) {
+                bp.removeWheat(player, fromBp);
             }
-            for (int i = 0; i < blocksCreated; i++)
-                giveOrDrop(player, CustomItemUtil.createCompressedWheatBlock(plugin, 1));
+
+            // Add results to BP first, overflow to inv
+            if (hasBp) {
+                int intoBp    = bp.addBlocks(player, blocksCreated);
+                int leftover  = blocksCreated - intoBp;
+                for (int i = 0; i < leftover; i++)
+                    giveOrDrop(player, CustomItemUtil.createCompressedWheatBlock(plugin, 1));
+            } else {
+                for (int i = 0; i < blocksCreated; i++)
+                    giveOrDrop(player, CustomItemUtil.createCompressedWheatBlock(plugin, 1));
+            }
         }
 
-        // Step 2: compressed_wheat_block -> enchanted_wheat_bale
-        int blocksInInv  = count(inv, "compressed_wheat_block");
-        int balesCreated = blocksInInv / 64;
+        // ── Step 2: blocks → bales ───────────────────────────────────────────
+        // Re-count blocks (inv might have changed after step 1)
+        int blocksInInv = count(inv, "compressed_wheat_block");
+        int blocksInBp  = hasBp ? bp.getStoredBlocks(player) : 0;
+        int totalBlocks = blocksInInv + blocksInBp;
+        balesCreated    = totalBlocks / 64;
+
         if (balesCreated > 0) {
-            remove(inv, "compressed_wheat_block", balesCreated * 64);
-            for (int i = 0; i < balesCreated; i++)
-                giveOrDrop(player, CustomItemUtil.createEnchantedWheatBale(plugin, 1));
+            int blocksNeeded  = balesCreated * 64;
+            int fromInv       = Math.min(blocksInInv, blocksNeeded);
+            int fromBp        = blocksNeeded - fromInv;
+            remove(inv, "compressed_wheat_block", fromInv);
+            if (fromBp > 0 && hasBp) {
+                bp.removeBlocks(player, fromBp);
+            }
+
+            if (hasBp) {
+                int intoBp   = bp.addBales(player, balesCreated);
+                int leftover = balesCreated - intoBp;
+                for (int i = 0; i < leftover; i++)
+                    giveOrDrop(player, CustomItemUtil.createEnchantedWheatBale(plugin, 1));
+            } else {
+                for (int i = 0; i < balesCreated; i++)
+                    giveOrDrop(player, CustomItemUtil.createEnchantedWheatBale(plugin, 1));
+            }
         }
 
         if (blocksCreated == 0 && balesCreated == 0) {
-            MessageUtil.sendRaw(player, MessageUtil.PREFIX + " <red>Not enough materials. Need 64 Farm Wheat or 64 Compressed Wheat Blocks.</red>");
+            MessageUtil.sendRaw(player, MessageUtil.PREFIX
+                    + " <red>Not enough materials. Need 64 Farm Wheat or 64 Compressed Wheat Blocks.</red>");
             return;
         }
 
-        StringBuilder msg = new StringBuilder(MessageUtil.PREFIX + " <gradient:#7afcff:#00c2ff>Crafted!</gradient> <gray>");
+        // Save BP
+        if (hasBp) bp.savePlayer(player);
+
+        StringBuilder msg = new StringBuilder(MessageUtil.PREFIX
+                + " <gradient:#7afcff:#00c2ff>Crafted!</gradient> <gray>");
         if (blocksCreated > 0) msg.append(blocksCreated).append("x Compressed Block");
         if (blocksCreated > 0 && balesCreated > 0) msg.append(", ");
         if (balesCreated > 0) msg.append(balesCreated).append("x Enchanted Bale");
         msg.append("</gray>");
+        if (hasBp) msg.append(" <dark_gray>(→ Backpack)");
         MessageUtil.sendRaw(player, msg.toString());
     }
 

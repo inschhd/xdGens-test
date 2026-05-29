@@ -31,11 +31,9 @@ public class ShopListener implements Listener {
     public void onBackpackClick(PlayerInteractEvent event) {
         ItemStack item = event.getItem();
         if (item == null || !CustomItemUtil.isBackpack(plugin, item)) return;
-
         Action action = event.getAction();
         boolean rightClick = action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK;
         if (!rightClick) return;
-
         event.setCancelled(true);
         event.getPlayer().openInventory(new BackpackGUI(plugin, event.getPlayer()).create());
     }
@@ -50,7 +48,7 @@ public class ShopListener implements Listener {
         if (title.contains(BackpackGUI.TITLE)) {
             int rawSlot = event.getRawSlot();
 
-            // Button clicks (top inventory only, non-input slots)
+            // Button row (bottom): non-input top slots — always cancel
             if (rawSlot < 54 && !BackpackGUI.isInputSlot(rawSlot)) {
                 event.setCancelled(true);
                 if (rawSlot == BackpackGUI.SLOT_SELL)    handleBackpackSell(player);
@@ -58,35 +56,23 @@ public class ShopListener implements Listener {
                 return;
             }
 
-            // Input slots: allow placing items, but only farm crop types
+            // Input slots: only allow recognised crop items
             if (BackpackGUI.isInputSlot(rawSlot)) {
                 ItemStack cursor = event.getCursor();
                 if (cursor != null && !cursor.getType().isAir()) {
-                    // Only allow recognised farm items
-                    if (!CustomItemUtil.hasItemType(plugin, cursor, "farm_wheat")
-                            && !CustomItemUtil.hasItemType(plugin, cursor, "compressed_wheat_block")
-                            && !CustomItemUtil.hasItemType(plugin, cursor, "enchanted_wheat_bale")) {
+                    if (!isCropItem(cursor)) {
                         event.setCancelled(true);
                         return;
                     }
                 }
-                // Allow the vanilla click (item goes into slot)
                 return;
             }
 
-            // Player's own bottom inventory (slots 54+): allow shift-clicking crops INTO backpack GUI
+            // Player bottom inventory: allow shift-click of crops only
             if (rawSlot >= 54) {
                 ItemStack clicked = event.getCurrentItem();
                 if (clicked == null || clicked.getType().isAir()) { event.setCancelled(true); return; }
-                // Only shift-click crops in
-                if (event.isShiftClick()) {
-                    if (CustomItemUtil.hasItemType(plugin, clicked, "farm_wheat")
-                            || CustomItemUtil.hasItemType(plugin, clicked, "compressed_wheat_block")
-                            || CustomItemUtil.hasItemType(plugin, clicked, "enchanted_wheat_bale")) {
-                        // Allow shift-click – vanilla will move it to first free input slot
-                        return;
-                    }
-                }
+                if (event.isShiftClick() && isCropItem(clicked)) return;
                 event.setCancelled(true);
             }
             return;
@@ -105,22 +91,17 @@ public class ShopListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         String title = PlainTextComponentSerializer.plainText().serialize(event.getView().title());
         if (!title.contains(BackpackGUI.TITLE)) return;
-
         ItemStack dragged = event.getOldCursor();
-        boolean cropItem = CustomItemUtil.hasItemType(plugin, dragged, "farm_wheat")
-                || CustomItemUtil.hasItemType(plugin, dragged, "compressed_wheat_block")
-                || CustomItemUtil.hasItemType(plugin, dragged, "enchanted_wheat_bale");
-
+        boolean crop = isCropItem(dragged);
         for (int slot : event.getRawSlots()) {
-            // Block dragging into stat/button rows or if item is not a crop
-            if (!BackpackGUI.isInputSlot(slot) || !cropItem) {
+            if (!BackpackGUI.isInputSlot(slot) || !crop) {
                 event.setCancelled(true);
                 return;
             }
         }
     }
 
-    // ─── on close: flush everything in input slots into backpack storage ──────
+    // ─── on close: flush input slots into backpack storage ────────────────────
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
@@ -128,37 +109,42 @@ public class ShopListener implements Listener {
         if (!title.contains(BackpackGUI.TITLE)) return;
 
         var topInv = event.getInventory();
-        int addedWheat = 0;
+        int addedWheat = 0, addedBlocks = 0, addedBales = 0;
 
         for (int slot = BackpackGUI.INPUT_START; slot <= BackpackGUI.INPUT_END; slot++) {
             ItemStack item = topInv.getItem(slot);
             if (item == null || item.getType().isAir()) continue;
-
-            // farm_wheat → store directly in BackpackManager
-            if (CustomItemUtil.hasItemType(plugin, item, "farm_wheat")) {
-                int toStore  = item.getAmount();
-                int stored   = plugin.getBackpackManager().addWheat(player, toStore);
-                addedWheat  += stored;
-                int leftover = toStore - stored;
-                if (leftover > 0) {
-                    item.setAmount(leftover);
-                    var overflow = player.getInventory().addItem(item);
-                    overflow.values().forEach(l -> player.getWorld().dropItemNaturally(player.getLocation(), l));
-                } else {
-                    topInv.setItem(slot, null);
-                }
-                continue;
-            }
-
-            // other crop types (blocks, bales): return to player inventory
             topInv.setItem(slot, null);
-            var overflow = player.getInventory().addItem(item);
-            overflow.values().forEach(l -> player.getWorld().dropItemNaturally(player.getLocation(), l));
+
+            if (CustomItemUtil.hasItemType(plugin, item, "farm_wheat")) {
+                int stored   = plugin.getBackpackManager().addWheat(player, item.getAmount());
+                addedWheat  += stored;
+                returnOverflow(player, item, stored);
+
+            } else if (CustomItemUtil.hasItemType(plugin, item, "compressed_wheat_block")) {
+                int stored    = plugin.getBackpackManager().addBlocks(player, item.getAmount());
+                addedBlocks  += stored;
+                returnOverflow(player, item, stored);
+
+            } else if (CustomItemUtil.hasItemType(plugin, item, "enchanted_wheat_bale")) {
+                int stored   = plugin.getBackpackManager().addBales(player, item.getAmount());
+                addedBales  += stored;
+                returnOverflow(player, item, stored);
+
+            } else {
+                // Unknown item: return to player
+                var overflow = player.getInventory().addItem(item);
+                overflow.values().forEach(l -> player.getWorld().dropItemNaturally(player.getLocation(), l));
+            }
         }
 
-        if (addedWheat > 0) {
-            MessageUtil.sendRaw(player, MessageUtil.PREFIX
-                    + " <gradient:#84fab0:#8fd3f4>+" + addedWheat + " wheat stored in backpack.</gradient>");
+        if (addedWheat > 0 || addedBlocks > 0 || addedBales > 0) {
+            StringBuilder msg = new StringBuilder(MessageUtil.PREFIX + " <gradient:#84fab0:#8fd3f4>Stored in backpack:</gradient> <gray>");
+            if (addedWheat  > 0) msg.append(NumberUtil.format(addedWheat)).append("x Wheat");
+            if (addedBlocks > 0) { if (addedWheat > 0) msg.append(", "); msg.append(NumberUtil.format(addedBlocks)).append("x Block"); }
+            if (addedBales  > 0) { if (addedWheat > 0 || addedBlocks > 0) msg.append(", "); msg.append(NumberUtil.format(addedBales)).append("x Bale"); }
+            msg.append("</gray>");
+            MessageUtil.sendRaw(player, msg.toString());
         }
 
         plugin.getBackpackManager().savePlayer(player);
@@ -166,21 +152,31 @@ public class ShopListener implements Listener {
 
     // ─── button handlers ─────────────────────────────────────────────────────
     private void handleBackpackSell(Player player) {
-        int wheat = plugin.getBackpackManager().getStoredWheat(player);
-        if (wheat <= 0) {
+        int wheat  = plugin.getBackpackManager().getStoredWheat(player);
+        int blocks = plugin.getBackpackManager().getStoredBlocks(player);
+        int bales  = plugin.getBackpackManager().getStoredBales(player);
+
+        if (wheat == 0 && blocks == 0 && bales == 0) {
             MessageUtil.sendRaw(player, MessageUtil.PREFIX + " <red>Your backpack is empty.</red>");
             return;
         }
-        double price  = plugin.getConfig().getDouble("sell.wheat.price", 12.0);
-        double earned = wheat * price;
-        plugin.getBackpackManager().removeWheat(player, wheat);
+
+        double wheatPrice = plugin.getConfig().getDouble("sell.wheat.price", 12.0);
+        double blockPrice = plugin.getConfig().getDouble("sell.compressed_wheat_block.price", 900.0);
+        double balePrice  = plugin.getConfig().getDouble("sell.enchanted_wheat_bale.price",  75000.0);
+        double earned     = (wheat * wheatPrice) + (blocks * blockPrice) + (bales * balePrice);
+
+        plugin.getBackpackManager().removeWheat(player,  wheat);
+        plugin.getBackpackManager().removeBlocks(player, blocks);
+        plugin.getBackpackManager().removeBales(player,  bales);
         plugin.getCurrencyManager().addMoney(player, earned);
         plugin.getBackpackManager().savePlayer(player);
         plugin.getCurrencyManager().savePlayer(player);
+
         MessageUtil.sendRaw(player, MessageUtil.PREFIX
                 + " <gradient:#7afcff:#00c2ff>Sold backpack contents</gradient>"
                 + " <gray>for</gray> <green>$" + NumberUtil.format(earned) + "</green>"
-                + " <gray>(Wheat: " + wheat + ")</gray>");
+                + " <gray>(Wheat: " + wheat + ", Blocks: " + blocks + ", Bales: " + bales + ")</gray>");
         player.closeInventory();
     }
 
@@ -223,5 +219,20 @@ public class ShopListener implements Listener {
                 + " <gradient:#84fab0:#8fd3f4>Crop Backpack purchased!</gradient>"
                 + " <gray>Cost: <red>$" + NumberUtil.format(cost) + "</red></gray>");
         player.closeInventory();
+    }
+
+    // ─── helpers ─────────────────────────────────────────────────────────────────
+    private boolean isCropItem(ItemStack item) {
+        return CustomItemUtil.hasItemType(plugin, item, "farm_wheat")
+                || CustomItemUtil.hasItemType(plugin, item, "compressed_wheat_block")
+                || CustomItemUtil.hasItemType(plugin, item, "enchanted_wheat_bale");
+    }
+
+    private void returnOverflow(Player player, ItemStack original, int stored) {
+        int leftover = original.getAmount() - stored;
+        if (leftover <= 0) return;
+        original.setAmount(leftover);
+        var overflow = player.getInventory().addItem(original);
+        overflow.values().forEach(l -> player.getWorld().dropItemNaturally(player.getLocation(), l));
     }
 }
