@@ -43,7 +43,19 @@ public class CustomItemUtil {
         return item;
     }
 
-    public static ItemStack createWorkstationItem(Main plugin) { return new ItemStack(Material.SMITHING_TABLE); }
+    public static ItemStack createWorkstationItem(Main plugin) {
+        ItemStack item = new ItemStack(Material.SMITHING_TABLE);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(MessageUtil.parse("<gradient:#a18cd1:#fbc2eb><bold>Wheat Workstation</bold></gradient>"));
+        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
+        lore.add(MessageUtil.parse("<gray>Place to compress wheat.</gray>"));
+        meta.lore(lore);
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, ITEM_KEY), PersistentDataType.BYTE, (byte) 1);
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, ITEM_TYPE_KEY), PersistentDataType.STRING, "workstation");
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        item.setItemMeta(meta);
+        return item;
+    }
 
     public static ItemStack createBackpackItem(Main plugin, org.bukkit.entity.Player player) {
         ItemStack item = new ItemStack(Material.BUNDLE);
