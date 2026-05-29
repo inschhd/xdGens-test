@@ -1,6 +1,7 @@
 package de.louis.xdGens.manager;
 
 import de.louis.xdGens.main.Main;
+import de.louis.xdGens.skin.HoeSkin;
 import de.louis.xdGens.util.HoeUtil;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -111,11 +112,11 @@ public class HoeUpgradeManager {
     public int getTokenLevel(Player player)  { return getTokenLevel(player.getUniqueId()); }
     public int getHoeLevel(Player player)    { return getHoeLevel(player.getUniqueId()); }
 
-    public double getXpMultiplier(Player player)  { return 1.0 + (getXpLevel(player) * XP_GAIN_PER_LEVEL) + getHoeXpBonus(player); }
+    public double getXpMultiplier(Player player)  { return 1.0 + (getXpLevel(player) * XP_GAIN_PER_LEVEL) + getHoeXpBonus(player) + getSkinXpBonus(player); }
     public double getXpPercentBonus(Player player) { return (getXpMultiplier(player) - 1.0) * 100.0; }
 
-    public double getTokenMultiplier(Player player)   { return 1.0 + (getTokenLevel(player) * TOKEN_GAIN_PER_LEVEL); }
-    public double getTokenPercentBonus(Player player) { return getTokenLevel(player) * (TOKEN_GAIN_PER_LEVEL * 100.0); }
+    public double getTokenMultiplier(Player player)   { return 1.0 + (getTokenLevel(player) * TOKEN_GAIN_PER_LEVEL) + getSkinTokenBonus(player); }
+    public double getTokenPercentBonus(Player player) { return (getTokenMultiplier(player) - 1.0) * 100.0; }
 
     public int    getHoeStageInMaterial(Player player)  { return ((getHoeLevel(player) - 1) % 3) + 1; }
     public String getHoeMaterialName(Player player)     { return getHoeMaterialName(getHoeLevel(player)); }
@@ -123,11 +124,29 @@ public class HoeUpgradeManager {
     public double getHoeXpBonus(Player player)          { return (getHoeLevel(player) - 1) * HOE_XP_GAIN_PER_LEVEL; }
     public double getHoeXpPercentBonus(Player player)   { return getHoeXpBonus(player) * 100.0; }
 
+    public double getSkinCropBonus(Player player) {
+        HoeSkin skin = plugin.getSkinManager().getActiveSkin(player);
+        return skin != null ? skin.cropBonus : 0.0;
+    }
+
+    public double getSkinXpBonus(Player player) {
+        HoeSkin skin = plugin.getSkinManager().getActiveSkin(player);
+        return skin != null ? skin.xpBonus : 0.0;
+    }
+
+    public double getSkinTokenBonus(Player player) {
+        HoeSkin skin = plugin.getSkinManager().getActiveSkin(player);
+        return skin != null ? skin.tokenBonus : 0.0;
+    }
+
     public float getWalkSpeed(Player player) {
         int level = getHoeLevel(player);
         if (MAX_HOE_LEVEL <= 1) return BASE_WALK_SPEED;
         float progress = (float) (level - 1) / (MAX_HOE_LEVEL - 1);
-        return BASE_WALK_SPEED + ((MAX_WALK_SPEED - BASE_WALK_SPEED) * progress);
+        float base = BASE_WALK_SPEED + ((MAX_WALK_SPEED - BASE_WALK_SPEED) * progress);
+        HoeSkin skin = plugin.getSkinManager().getActiveSkin(player);
+        if (skin != null && skin.speedBonus) base = Math.min(base + 0.08f, MAX_WALK_SPEED);
+        return base;
     }
 
     // ─── costs ────────────────────────────────────────────────────────────
@@ -246,7 +265,8 @@ public class HoeUpgradeManager {
     public void syncHoeItem(Player player) {
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         if (!HoeUtil.isXdHoe(mainHand)) return;
-        player.getInventory().setItemInMainHand(HoeUtil.updateHoeItem(plugin, mainHand, getHoeLevel(player)));
+        HoeSkin skin = plugin.getSkinManager().getActiveSkin(player);
+        player.getInventory().setItemInMainHand(HoeUtil.updateHoeItem(plugin, mainHand, getHoeLevel(player), skin));
     }
 
     // ─── private helpers ─────────────────────────────────────────────────

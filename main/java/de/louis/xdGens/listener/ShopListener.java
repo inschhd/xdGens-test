@@ -3,6 +3,7 @@ package de.louis.xdGens.listener;
 import de.louis.xdGens.gui.BackpackGUI;
 import de.louis.xdGens.gui.ShopGUI;
 import de.louis.xdGens.main.Main;
+import de.louis.xdGens.skin.HoeSkin;
 import de.louis.xdGens.util.CustomItemUtil;
 import de.louis.xdGens.util.MessageUtil;
 import de.louis.xdGens.util.NumberUtil;
@@ -79,9 +80,28 @@ public class ShopListener implements Listener {
         }
 
         // ── Shop GUI ──────────────────────────────────────────────────────────
-        if (title.contains(ShopGUI.TITLE)) {
+        if (title.equals(ShopGUI.TITLE)) {
             event.setCancelled(true);
-            if (event.getRawSlot() == ShopGUI.SLOT_BACKPACK) handleShopBuyBackpack(player);
+            int slot = event.getRawSlot();
+            if (slot == ShopGUI.SLOT_BACKPACK)  handleShopBuyBackpack(player);
+            else if (slot == ShopGUI.SLOT_SKINS_BTN) player.openInventory(new ShopGUI(plugin, player).createSkinPage());
+            return;
+        }
+
+        // ── Skin Shop GUI ─────────────────────────────────────────────────────
+        if (title.equals(ShopGUI.TITLE_SKINS)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot == ShopGUI.SLOT_BACK) {
+                player.openInventory(new ShopGUI(plugin, player).create());
+                return;
+            }
+            for (int i = 0; i < ShopGUI.SKIN_SLOTS.length; i++) {
+                if (slot == ShopGUI.SKIN_SLOTS[i]) {
+                    handleSkinClick(player, HoeSkin.values()[i]);
+                    return;
+                }
+            }
         }
     }
 
@@ -219,6 +239,32 @@ public class ShopListener implements Listener {
                 + " <gradient:#84fab0:#8fd3f4>Crop Backpack purchased!</gradient>"
                 + " <gray>Cost: <red>$" + NumberUtil.format(cost) + "</red></gray>");
         player.closeInventory();
+    }
+
+    private void handleSkinClick(Player player, HoeSkin skin) {
+        if (plugin.getSkinManager().owns(player, skin)) {
+            if (skin == plugin.getSkinManager().getActiveSkin(player)) {
+                MessageUtil.sendRaw(player, MessageUtil.PREFIX + " <yellow>Dieser Skin ist bereits ausgerüstet.</yellow>");
+                return;
+            }
+            plugin.getSkinManager().equipSkin(player, skin);
+            plugin.getHoeUpgradeManager().applyHoeStats(player);
+            MessageUtil.sendRaw(player, MessageUtil.PREFIX + " " + skin.nameGradient + " <gray>ausgerüstet!</gray>");
+            player.openInventory(new ShopGUI(plugin, player).createSkinPage());
+            return;
+        }
+        double cost = skin.price;
+        if (plugin.getCurrencyManager().getMoney(player) < cost) {
+            MessageUtil.sendRaw(player, MessageUtil.PREFIX
+                    + " <red>Nicht genug Geld. Benötigt: <white>$" + NumberUtil.format(cost) + "</white></red>");
+            return;
+        }
+        plugin.getSkinManager().buySkin(player, skin);
+        plugin.getHoeUpgradeManager().applyHoeStats(player);
+        MessageUtil.sendRaw(player, MessageUtil.PREFIX + " " + skin.nameGradient
+                + " <green>gekauft und ausgerüstet!</green>"
+                + " <gray>Kosten: <red>$" + NumberUtil.format(cost) + "</red></gray>");
+        player.openInventory(new ShopGUI(plugin, player).createSkinPage());
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package de.louis.xdGens.main;
 
 import de.louis.xdGens.command.*;
 import de.louis.xdGens.field.FieldManager;
+import de.louis.xdGens.skin.SkinManager;
 import de.louis.xdGens.listener.DropListener;
 import de.louis.xdGens.listener.FieldListener;
 import de.louis.xdGens.listener.HoeProtectionListener;
@@ -33,6 +34,7 @@ public final class Main extends JavaPlugin {
     private ProgressionManager progressionManager;
     private HoeUpgradeManager hoeUpgradeManager;
     private BackpackManager backpackManager;
+    private SkinManager skinManager;
     private LobbyProtectionListener lobbyProtectionListener;
 
     @Override
@@ -48,6 +50,7 @@ public final class Main extends JavaPlugin {
         this.actionBarManager = new ActionBarManager(this);
         this.scoreboardManager = new ScoreboardManager(this);
         this.progressionManager = new ProgressionManager(this);
+        this.skinManager = new SkinManager(this);
         this.hoeUpgradeManager = new HoeUpgradeManager(this);
         this.backpackManager = new BackpackManager(this);
         this.lobbyProtectionListener = new LobbyProtectionListener(this);
@@ -172,5 +175,9 @@ public final class Main extends JavaPlugin {
 
     public BackpackManager getBackpackManager() {
         return backpackManager;
+    }
+
+    public SkinManager getSkinManager() {
+        return skinManager;
     }
 }

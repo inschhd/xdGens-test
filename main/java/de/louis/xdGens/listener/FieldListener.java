@@ -66,7 +66,8 @@ public class FieldListener implements Listener {
         long finalTokens = Math.round(baseTokens * plugin.getHoeUpgradeManager().getTokenMultiplier(player));
         double finalXp = Rng.between(xpMin, xpMax) * plugin.getHoeUpgradeManager().getXpMultiplier(player);
 
-        int totalCrops = 1 + plugin.getHoeUpgradeManager().getCropBonus(player);
+        double skinCropMult = 1.0 + plugin.getHoeUpgradeManager().getSkinCropBonus(player);
+        int totalCrops = (int) Math.round((1 + plugin.getHoeUpgradeManager().getCropBonus(player)) * skinCropMult);
 
         int stored = plugin.getBackpackManager().addWheat(player, totalCrops);
         int remaining = totalCrops - stored;

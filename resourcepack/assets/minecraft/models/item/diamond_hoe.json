@@ -1,0 +1,13 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/diamond_hoe"
+  },
+  "overrides": [
+    { "predicate": { "custom_model_data": 1001 }, "model": "xdgens:item/hoe_forest" },
+    { "predicate": { "custom_model_data": 1002 }, "model": "xdgens:item/hoe_ocean" },
+    { "predicate": { "custom_model_data": 1003 }, "model": "xdgens:item/hoe_lava" },
+    { "predicate": { "custom_model_data": 1004 }, "model": "xdgens:item/hoe_crystal" },
+    { "predicate": { "custom_model_data": 1005 }, "model": "xdgens:item/hoe_shadow" }
+  ]
+}

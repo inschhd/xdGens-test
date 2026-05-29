@@ -1,9 +1,11 @@
 package de.louis.xdGens.util;
 
 import de.louis.xdGens.main.Main;
+import de.louis.xdGens.skin.HoeSkin;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -20,11 +22,11 @@ public class HoeUtil {
     public static final String HOE_LEVEL_KEY = "xdgens_hoe_level";
 
     public static ItemStack createStarterHoe(Main plugin) {
-        return createHoe(plugin, 1);
+        return createHoe(plugin, 1, null);
     }
 
-    public static ItemStack createHoe(Main plugin, int level) {
-        Material material = getHoeMaterial(level);
+    public static ItemStack createHoe(Main plugin, int level, HoeSkin skin) {
+        Material material = (skin != null) ? skin.baseMaterial() : getHoeMaterial(level);
 
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
@@ -32,9 +34,11 @@ public class HoeUtil {
         String materialName = getHoeMaterialName(level);
         int stage = ((level - 1) % 3) + 1;
 
-        meta.displayName(MessageUtil.parse(
-                "<gradient:#7afcff:#00c2ff><bold>" + materialName + " Hoe</bold></gradient> <gray>[Lvl " + level + "]</gray>"
-        ));
+        String nameText = (skin != null)
+                ? skin.nameGradient + " <gray>[Lvl " + level + "]</gray>"
+                : "<gradient:#7afcff:#00c2ff><bold>" + materialName + " Hoe</bold></gradient> <gray>[Lvl " + level + "]</gray>";
+
+        meta.displayName(MessageUtil.parse(nameText));
 
         List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
         lore.add(MessageUtil.parse("<gray>Dein Tool für das</gray> <gradient:#f6d365:#fda085>Weizenfeld</gradient>"));
@@ -42,10 +46,19 @@ public class HoeUtil {
         lore.add(MessageUtil.parse("<dark_gray>•</dark_gray> <gray>Stufe:</gray> <gradient:#7afcff:#00c2ff>" + stage + "/3</gradient>"));
         lore.add(MessageUtil.parse("<dark_gray>•</dark_gray> <gray>Gesamtlevel:</gray> <gradient:#7afcff:#00c2ff>" + level + "/18</gradient>"));
         lore.add(MessageUtil.parse("<dark_gray>•</dark_gray> <gray>Nur mit dieser Hoe kannst du ernten.</gray>"));
+        if (skin != null) {
+            lore.add(MessageUtil.parse(" "));
+            lore.add(MessageUtil.parse("<dark_gray>✦ Skin: " + skin.nameGradient + "</dark_gray>"));
+            lore.add(MessageUtil.parse("<dark_gray>  " + skin.bonusDescription + "</dark_gray>"));
+        }
 
         meta.lore(lore);
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES);
+
+        if (skin != null) {
+            meta.setCustomModelData(skin.customModelData);
+        }
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(new NamespacedKey(plugin, TOOL_KEY), PersistentDataType.BYTE, (byte) 1);
@@ -56,13 +69,9 @@ public class HoeUtil {
         return item;
     }
 
-    public static ItemStack updateHoeItem(Main plugin, ItemStack current, int level) {
-        ItemStack updated = createHoe(plugin, level);
-
-        if (current != null && current.hasItemMeta()) {
-            updated.setAmount(current.getAmount());
-        }
-
+    public static ItemStack updateHoeItem(Main plugin, ItemStack current, int level, HoeSkin skin) {
+        ItemStack updated = createHoe(plugin, level, skin);
+        if (current != null && current.hasItemMeta()) updated.setAmount(current.getAmount());
         return updated;
     }
 
